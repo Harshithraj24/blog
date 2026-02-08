@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why VPC Peering Breaks with Overlapping CIDRs</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent-orange: #f0883e;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --accent-yellow: #d29922;
+    --vpc-a: #1a3a5c;
+    --vpc-b: #3a1a5c;
+    --vpc-hub: #1a4a3c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1.8;
+    font-size: 17px;
+    overflow-x: hidden;
+  }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    min-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 30% 40%, rgba(240,136,62,0.12), transparent),
+      radial-gradient(ellipse 500px 500px at 70% 60%, rgba(88,166,255,0.08), transparent),
+      radial-gradient(ellipse 400px 300px at 50% 80%, rgba(248,81,73,0.06), transparent);
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(48,54,61,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(48,54,61,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 70%);
+    animation: gridFloat 20s ease-in-out infinite;
+  }
+
+  @keyframes gridFloat {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-10px, -10px); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border: 1px solid var(--accent-orange);
+    border-radius: 50px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-orange);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 2rem;
+    animation: fadeInDown 0.8s ease;
+  }
+
+  .hero-badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    animation: pulse 2s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .hero h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.2;
+    margin-bottom: 1.5rem;
+    animation: fadeInUp 0.8s ease 0.2s both;
+  }
+
+  .hero h1 .highlight {
+    color: var(--accent-red);
+    position: relative;
+  }
+
+  .hero h1 .highlight::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent-red);
+    border-radius: 2px;
+    opacity: 0.5;
+  }
+
+  .hero-subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    max-width: 600px;
+    margin: 0 auto 2.5rem;
+    animation: fadeInUp 0.8s ease 0.4s both;
+  }
+
+  .scroll-indicator {
+    animation: fadeInUp 0.8s ease 0.6s both, bounce 2s ease infinite 1.5s;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  .scroll-indicator svg {
+    display: block;
+    margin: 8px auto 0;
+    opacity: 0.5;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(6px); }
+  }
+
+  /* Content */
+  .content {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+
+  .section {
+    margin-bottom: 5rem;
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--accent-orange);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-orange), transparent);
+    opacity: 0.3;
+  }
+
+  h2 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    margin-bottom: 1.5rem;
+    line-height: 1.3;
+  }
+
+  h3 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    color: var(--accent-blue);
+  }
+
+  p {
+    margin-bottom: 1.2rem;
+    color: var(--text-muted);
+  }
+
+  p strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  /* Diagram Containers */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem;
+    margin: 2rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .diagram-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-orange), var(--accent-blue), var(--accent-purple));
+    border-radius: 16px 16px 0 0;
+  }
+
+  .diagram-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent-orange);
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+
+  /* Analogy: Post Office */
+  .post-office-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .scenario-row {
+    display: flex;
+    gap: 2rem;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .house {
+    background: var(--surface-2);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    text-align: center;
+    min-width: 160px;
+    flex: 1;
+    max-width: 220px;
+    transition: all 0.3s ease;
+  }
+
+  .house-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .house-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-bottom: 0.25rem;
+  }
+
+  .house-address {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 0.3rem;
+  }
+
+  .house-unique .house-address {
+    background: rgba(63,185,80,0.15);
+    color: var(--accent-green);
+    border: 1px solid rgba(63,185,80,0.3);
+  }
+
+  .house-conflict .house-address {
+    background: rgba(248,81,73,0.15);
+    color: var(--accent-red);
+    border: 1px solid rgba(248,81,73,0.3);
+  }
+
+  .postman {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .postman-icon {
+    font-size: 2.5rem;
+    position: relative;
+  }
+
+  .postman-speech {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    position: relative;
+    max-width: 260px;
+    text-align: center;
+  }
+
+  .postman-speech.confused {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+
+  .postman-speech.happy {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  .scenario-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    padding: 4px 16px;
+    border-radius: 50px;
+    margin-bottom: 0.5rem;
+  }
+
+  .scenario-label.good {
+    background: rgba(63,185,80,0.1);
+    color: var(--accent-green);
+    border: 1px solid rgba(63,185,80,0.3);
+  }
+
+  .scenario-label.bad {
+    background: rgba(248,81,73,0.1);
+    color: var(--accent-red);
+    border: 1px solid rgba(248,81,73,0.3);
+  }
+
+  .divider-line {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+    position: relative;
+  }
+
+  .divider-line span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--surface);
+    padding: 0 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  /* VPC Peering Diagram */
+  .vpc-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .vpc-peer-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .vpc-box {
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    min-width: 200px;
+    flex: 1;
+    max-width: 280px;
+    position: relative;
+  }
+
+  .vpc-box.vpc-a {
+    background: linear-gradient(135deg, var(--vpc-a), rgba(26,58,92,0.3));
+    border: 2px solid rgba(88,166,255,0.4);
+  }
+
+  .vpc-box.vpc-b {
+    background: linear-gradient(135deg, var(--vpc-b), rgba(58,26,92,0.3));
+    border: 2px solid rgba(188,140,255,0.4);
+  }
+
+  .vpc-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text);
+    margin-bottom: 0.3rem;
+  }
+
+  .vpc-cidr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .vpc-a .vpc-cidr { color: var(--accent-blue); }
+  .vpc-b .vpc-cidr { color: var(--accent-purple); }
+
+  .vpc-range {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    display: inline-block;
+  }
+
+  .peering-connection {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 80px;
+  }
+
+  .peering-line {
+    width: 60px;
+    height: 3px;
+    border-radius: 2px;
+    position: relative;
+  }
+
+  .peering-line.fail {
+    background: var(--accent-red);
+    box-shadow: 0 0 10px rgba(248,81,73,0.3);
+  }
+
+  .peering-line.fail::after {
+    content: '✕';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2rem;
+    color: var(--accent-red);
+    font-weight: bold;
+  }
+
+  .peering-line.success {
+    background: var(--accent-green);
+    box-shadow: 0 0 10px rgba(63,185,80,0.3);
+  }
+
+  .peering-line.success::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1rem;
+    color: var(--accent-green);
+    font-weight: bold;
+  }
+
+  .peering-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .peering-label.fail { color: var(--accent-red); }
+  .peering-label.success { color: var(--accent-green); }
+
+  /* Number Line */
+  .number-line-container {
+    padding: 1rem 0;
+  }
+
+  .number-line {
+    position: relative;
+    height: 120px;
+    margin: 2rem 0 1rem;
+  }
+
+  .number-axis {
+    position: absolute;
+    bottom: 30px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--border);
+  }
+
+  .number-tick {
+    position: absolute;
+    bottom: 26px;
+    width: 2px;
+    height: 12px;
+    background: var(--text-muted);
+  }
+
+  .number-label {
+    position: absolute;
+    bottom: 0;
+    transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .range-bar {
+    position: absolute;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
+  .range-bar.bar-a {
+    top: 0;
+    background: rgba(88,166,255,0.25);
+    border: 1.5px solid rgba(88,166,255,0.6);
+    color: var(--accent-blue);
+  }
+
+  .range-bar.bar-b {
+    top: 32px;
+    background: rgba(188,140,255,0.25);
+    border: 1.5px solid rgba(188,140,255,0.6);
+    color: var(--accent-purple);
+  }
+
+  .range-bar.bar-hub {
+    top: 0;
+    background: rgba(63,185,80,0.2);
+    border: 1.5px solid rgba(63,185,80,0.5);
+    color: var(--accent-green);
+  }
+
+  .range-bar.bar-corp {
+    top: 32px;
+    background: rgba(88,166,255,0.2);
+    border: 1.5px solid rgba(88,166,255,0.5);
+    color: var(--accent-blue);
+  }
+
+  .range-bar.bar-dev {
+    top: 64px;
+    background: rgba(188,140,255,0.2);
+    border: 1.5px solid rgba(188,140,255,0.5);
+    color: var(--accent-purple);
+  }
+
+  .overlap-zone {
+    position: absolute;
+    height: 58px;
+    top: 0;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(248,81,73,0.08),
+      rgba(248,81,73,0.08) 4px,
+      transparent 4px,
+      transparent 8px
+    );
+    border: 1.5px dashed var(--accent-red);
+    border-radius: 6px;
+  }
+
+  .overlap-label {
+    position: absolute;
+    top: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent-red);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Route Table */
+  .route-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    margin: 1rem 0;
+  }
+
+  .route-table th {
+    text-align: left;
+    padding: 10px 16px;
+    background: rgba(0,0,0,0.3);
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .route-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    color: var(--text);
+  }
+
+  .route-table tr.conflict td {
+    color: var(--accent-red);
+    background: rgba(248,81,73,0.05);
+  }
+
+  .route-table tr.local td {
+    color: var(--accent-blue);
+  }
+
+  .route-match {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .route-match.yes {
+    background: rgba(248,81,73,0.15);
+    color: var(--accent-red);
+  }
+
+  .route-match.ok {
+    background: rgba(63,185,80,0.15);
+    color: var(--accent-green);
+  }
+
+  /* Packet Journey */
+  .packet-journey {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+  }
+
+  .packet {
+    background: var(--accent-yellow);
+    color: var(--bg);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 8px;
+    position: relative;
+    animation: packetGlow 2s ease infinite;
+  }
+
+  @keyframes packetGlow {
+    0%, 100% { box-shadow: 0 0 8px rgba(210,153,34,0.3); }
+    50% { box-shadow: 0 0 16px rgba(210,153,34,0.5); }
+  }
+
+  .arrow-right {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+  }
+
+  .router-box {
+    background: var(--surface-2);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    text-align: center;
+    min-width: 120px;
+  }
+
+  .router-icon { font-size: 1.5rem; display: block; margin-bottom: 4px; }
+  .router-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  .destination-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .dest-option {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dest-option.opt-a {
+    background: rgba(88,166,255,0.15);
+    border: 1px solid rgba(88,166,255,0.3);
+    color: var(--accent-blue);
+  }
+
+  .dest-option.opt-b {
+    background: rgba(188,140,255,0.15);
+    border: 1px solid rgba(188,140,255,0.3);
+    color: var(--accent-purple);
+  }
+
+  .question-marks {
+    font-size: 1.5rem;
+    color: var(--accent-red);
+    font-weight: 700;
+    animation: questionPulse 1.5s ease infinite;
+  }
+
+  @keyframes questionPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    position: relative;
+  }
+
+  .callout.info {
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.2);
+  }
+
+  .callout.warning {
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.2);
+  }
+
+  .callout.success {
+    background: rgba(63,185,80,0.08);
+    border: 1px solid rgba(63,185,80,0.2);
+  }
+
+  .callout.tip {
+    background: rgba(210,153,34,0.08);
+    border: 1px solid rgba(210,153,34,0.2);
+  }
+
+  .callout-icon {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .callout-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .callout.info .callout-title { color: var(--accent-blue); }
+  .callout.warning .callout-title { color: var(--accent-red); }
+  .callout.success .callout-title { color: var(--accent-green); }
+  .callout.tip .callout-title { color: var(--accent-yellow); }
+
+  .callout p {
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* Code blocks */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: rgba(0,0,0,0.3);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--accent-orange);
+  }
+
+  /* Step-by-step */
+  .steps {
+    counter-reset: step-counter;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  .step {
+    counter-increment: step-counter;
+    display: flex;
+    gap: 1.2rem;
+    align-items: flex-start;
+  }
+
+  .step-number {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--accent-orange);
+    font-weight: 700;
+  }
+
+  .step-content h4 {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.95rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .step-content p {
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  /* Mistakes grid */
+  .mistakes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .mistake-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .mistake-card:hover {
+    border-color: var(--accent-red);
+  }
+
+  .mistake-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .mistake-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent-red);
+    margin-bottom: 0.5rem;
+  }
+
+  .mistake-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  /* Safe plan diagram */
+  .safe-plan {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .safe-vpc-row {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .safe-vpc {
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    flex: 1;
+    min-width: 150px;
+    max-width: 220px;
+  }
+
+  .safe-vpc.hub {
+    background: linear-gradient(135deg, var(--vpc-hub), rgba(26,74,60,0.3));
+    border: 2px solid rgba(63,185,80,0.4);
+  }
+
+  .safe-vpc.corp {
+    background: linear-gradient(135deg, var(--vpc-a), rgba(26,58,92,0.3));
+    border: 2px solid rgba(88,166,255,0.4);
+  }
+
+  .safe-vpc.dev {
+    background: linear-gradient(135deg, var(--vpc-b), rgba(58,26,92,0.3));
+    border: 2px solid rgba(188,140,255,0.4);
+  }
+
+  .safe-vpc-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .safe-vpc-cidr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .hub .safe-vpc-cidr { color: var(--accent-green); }
+  .corp .safe-vpc-cidr { color: var(--accent-blue); }
+  .dev .safe-vpc-cidr { color: var(--accent-purple); }
+
+  .peering-lines {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .peer-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-green);
+  }
+
+  .peer-link-line {
+    width: 40px;
+    height: 2px;
+    background: var(--accent-green);
+    border-radius: 1px;
+  }
+
+  /* TLDR box */
+  .tldr-box {
+    background: linear-gradient(135deg, rgba(240,136,62,0.1), rgba(88,166,255,0.1));
+    border: 2px solid rgba(240,136,62,0.3);
+    border-radius: 16px;
+    padding: 2rem;
+    margin: 3rem 0;
+    text-align: center;
+  }
+
+  .tldr-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.2rem;
+    color: var(--accent-orange);
+    margin-bottom: 1rem;
+  }
+
+  .tldr-box p {
+    font-size: 1.1rem;
+    color: var(--text);
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  /* Author */
+  .author-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 4rem;
+  }
+
+  .author-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    min-width: 60px;
+  }
+
+  .author-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .author-role {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .scenario-row, .vpc-peer-row, .safe-vpc-row {
+      flex-direction: column;
+      align-items: center;
+    }
+    .house, .vpc-box, .safe-vpc {
+      max-width: 100%;
+    }
+    .peering-connection {
+      transform: rotate(90deg);
+    }
+    .packet-journey {
+      flex-direction: column;
+    }
+    .diagram-box {
+      padding: 1.5rem;
+    }
+    .hero h1 {
+      font-size: 1.8rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge">AWS Networking Deep Dive</div>
+    <h1>Why VPC Peering <span class="highlight">Breaks</span> with Overlapping CIDRs</h1>
+    <p class="hero-subtitle">A beginner-friendly visual guide to understanding why two networks with the same address range can never talk to each other — explained with postcards and postmen.</p>
+    <div class="scroll-indicator">
+      scroll to explore
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    </div>
+  </div>
+</section>
+
+<!-- CONTENT -->
+<main class="content">
+
+  <!-- SECTION 1: The Analogy -->
+  <section class="section">
+    <div class="section-label">Chapter 01 — The Analogy</div>
+    <h2>The Postman Problem</h2>
+    <p>Before we touch any cloud jargon, let's think about something familiar: <strong>a postal delivery system</strong>. Every house in a neighborhood has a unique address so that the postman knows exactly where to deliver each letter. Simple, right?</p>
+    <p>Now imagine what happens if <strong>two houses on the same street have the exact same address number</strong>. The postman picks up a letter for "42 Elm Street" — but there are two houses with that number. Which door does he knock on? <strong>He can't decide.</strong> The mail system breaks.</p>
+    <p>This is <em>exactly</em> what happens with VPC peering when CIDR blocks overlap.</p>
+
+    <div class="diagram-box">
+      <div class="diagram-title">📬 The Postman Problem — Visualized</div>
+      <div class="post-office-diagram">
+
+        <!-- GOOD scenario -->
+        <div class="scenario-label good">✅ Unique Addresses — Mail Delivered</div>
+        <div class="scenario-row">
+          <div class="house house-unique">
+            <span class="house-icon">🏠</span>
+            <div class="house-label">Alice's House</div>
+            <span class="house-address">#42 Elm St</span>
+          </div>
+          <div class="postman">
+            <span class="postman-icon">📮</span>
+            <div class="postman-speech happy">"Letter for #99? That's Bob's place!"</div>
+          </div>
+          <div class="house house-unique">
+            <span class="house-icon">🏡</span>
+            <div class="house-label">Bob's House</div>
+            <span class="house-address">#99 Elm St</span>
+          </div>
+        </div>
+
+        <div class="divider-line"><span>vs</span></div>
+
+        <!-- BAD scenario -->
+        <div class="scenario-label bad">❌ Same Address — Mail Can't Be Delivered</div>
+        <div class="scenario-row">
+          <div class="house house-conflict">
+            <span class="house-icon">🏠</span>
+            <div class="house-label">Alice's House</div>
+            <span class="house-address">#42 Elm St</span>
+          </div>
+          <div class="postman">
+            <span class="postman-icon">📮</span>
+            <div class="postman-speech confused">"Letter for #42... but WHICH #42?! 🤯"</div>
+          </div>
+          <div class="house house-conflict">
+            <span class="house-icon">🏡</span>
+            <div class="house-label">Bob's House</div>
+            <span class="house-address">#42 Elm St</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-icon">💡</span>
+      <div class="callout-title">Key Takeaway</div>
+      <p>In networking, every network (VPC) needs a <strong>unique address range</strong> — just like every house needs a unique street address. When two VPCs share the same range, routers (the "postmen" of the internet) can't figure out where to send the data.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 2: What is a CIDR? -->
+  <section class="section">
+    <div class="section-label">Chapter 02 — The Basics</div>
+    <h2>What is a CIDR Block, Anyway?</h2>
+    <p>A <strong>CIDR block</strong> (Classless Inter-Domain Routing) is just a fancy way of saying <strong>"a range of IP addresses"</strong>. Think of it as a block of house numbers assigned to a street.</p>
+    <p>When you see something like <code>10.0.0.0/16</code>, here's what it means:</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h4><code>10.0.0.0</code> — The Starting Address</h4>
+          <p>This is the first "house number" in the block. Think of it as the beginning of your street.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h4><code>/16</code> — How Big the Block Is</h4>
+          <p>The smaller this number, the <strong>bigger</strong> the block. A /16 gives you ~65,000 addresses. A /24 gives you only 256. Think of it like: /16 = entire neighborhood, /24 = one apartment building.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h4>The Range</h4>
+          <p>So <code>10.0.0.0/16</code> covers addresses from <code>10.0.0.0</code> all the way to <code>10.0.255.255</code>. That's your "territory".</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-icon">🎯</span>
+      <div class="callout-title">Quick Mental Model</div>
+      <p>Think of a CIDR block as a <strong>plot of land with numbered lots</strong>. The starting address is where the plot begins, and the prefix length (<code>/16</code>, <code>/24</code>) determines how many lots you get.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 3: The Peering Problem -->
+  <section class="section">
+    <div class="section-label">Chapter 03 — The Problem</div>
+    <h2>Why Overlapping CIDRs Kill Peering</h2>
+    <p>When you "peer" two VPCs, you're telling AWS: <strong>"These two networks should be able to talk to each other."</strong> Behind the scenes, AWS adds entries to each VPC's <strong>route table</strong> — basically a lookup chart that says "to reach address X, go through door Y."</p>
+    <p>Here's what happens when both VPCs have the same CIDR block:</p>
+
+    <!-- Overlapping Peering Diagram -->
+    <div class="diagram-box">
+      <div class="diagram-title">🔗 VPC Peering — Overlapping CIDRs</div>
+      <div class="vpc-diagram">
+        <div class="vpc-peer-row">
+          <div class="vpc-box vpc-a">
+            <div class="vpc-name">VPC-A</div>
+            <div class="vpc-cidr">10.0.0.0/16</div>
+            <span class="vpc-range">10.0.0.0 → 10.0.255.255</span>
+          </div>
+          <div class="peering-connection">
+            <span class="peering-label fail">BLOCKED</span>
+            <div class="peering-line fail"></div>
+            <span style="font-size:0.65rem; color: var(--text-muted); font-family: 'Space Mono', monospace;">peering</span>
+          </div>
+          <div class="vpc-box vpc-b">
+            <div class="vpc-name">VPC-B</div>
+            <div class="vpc-cidr">10.0.0.0/16</div>
+            <span class="vpc-range">10.0.0.0 → 10.0.255.255</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p>Now let's see <strong>exactly why</strong> this breaks, by looking at the route table:</p>
+
+    <!-- Route Table -->
+    <div class="diagram-box">
+      <div class="diagram-title">📋 VPC-A's Route Table — The Conflict</div>
+      <table class="route-table">
+        <thead>
+          <tr>
+            <th>Destination</th>
+            <th>Target</th>
+            <th>Match for 10.0.5.20?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="local">
+            <td>10.0.0.0/16</td>
+            <td>local (VPC-A)</td>
+            <td><span class="route-match yes">✓ Match</span></td>
+          </tr>
+          <tr class="conflict">
+            <td>10.0.0.0/16</td>
+            <td>pcx-peer (VPC-B)</td>
+            <td><span class="route-match yes">✓ Also Match!</span></td>
+          </tr>
+          <tr>
+            <td>0.0.0.0/0</td>
+            <td>igw-internet</td>
+            <td><span class="route-match ok">fallback</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="text-align:center; margin-top:1rem;">
+        <span class="question-marks">❓❓❓</span>
+        <p style="color: var(--accent-red); font-family: 'Space Mono', monospace; font-size: 0.85rem; margin-top: 0.5rem;">Both routes match → Router can't decide → Connection impossible</p>
+      </div>
+    </div>
+
+    <!-- Packet Journey -->
+    <div class="diagram-box">
+      <div class="diagram-title">📦 A Packet's Confusing Journey</div>
+      <div class="packet-journey">
+        <div class="packet">📦 10.0.5.20</div>
+        <span class="arrow-right">→</span>
+        <div class="router-box">
+          <span class="router-icon">🔀</span>
+          <span class="router-label">Router</span>
+        </div>
+        <span class="arrow-right">→</span>
+        <div class="destination-options">
+          <div class="dest-option opt-a">🏠 VPC-A (local)? ✓</div>
+          <div class="dest-option opt-b">🏡 VPC-B (peer)? ✓</div>
+        </div>
+        <span class="question-marks">⁉️</span>
+      </div>
+      <p style="text-align:center; font-size:0.9rem; margin-top:1rem;">The packet destination <code>10.0.5.20</code> exists in <strong>both</strong> VPCs. The router literally cannot pick one, so <strong>AWS prevents this situation entirely</strong> — you can't even create the peering connection.</p>
+    </div>
+
+    <div class="callout warning">
+      <span class="callout-icon">⚠️</span>
+      <div class="callout-title">AWS Blocks This at Creation Time</div>
+      <p>AWS doesn't wait for packets to get confused. The moment you try to create a peering connection between overlapping VPCs, the API returns an error: <code>InvalidParameterValue: VPCs with overlapping CIDRs cannot be peered</code>. It's a safety guardrail built into the platform.</p>
+    </div>
+  </section>
+
+  <!-- SECTION 4: Partial Overlaps -->
+  <section class="section">
+    <div class="section-label">Chapter 04 — It Gets Trickier</div>
+    <h2>Even Partial Overlaps Fail</h2>
+    <p>You might think, "Okay, I'll just make one VPC <em>slightly</em> different." But even partial overlaps create the same problem. If <strong>any</strong> IP address could belong to both VPCs, peering is impossible.</p>
+
+    <!-- Number Line: Overlapping -->
+    <div class="diagram-box">
+      <div class="diagram-title">📏 IP Range Number Line — Overlap Detected</div>
+      <div class="number-line-container">
+        <div class="number-line" style="height: 140px;">
+          <!-- Axis -->
+          <div class="number-axis"></div>
+          <!-- Ticks -->
+          <div class="number-tick" style="left: 0%;"></div>
+          <div class="number-tick" style="left: 50%;"></div>
+          <div class="number-tick" style="left: 100%;"></div>
+          <!-- Labels -->
+          <div class="number-label" style="left: 0%;">10.0.0.0</div>
+          <div class="number-label" style="left: 50%;">10.1.0.0</div>
+          <div class="number-label" style="left: 100%;">10.2.0.0</div>
+          <!-- Bars -->
+          <div class="range-bar bar-a" style="left: 0%; width: 100%;">VPC-A: 10.0.0.0/15</div>
+          <div class="range-bar bar-b" style="left: 0%; width: 50%;">VPC-B: 10.0.0.0/16</div>
+          <!-- Overlap zone -->
+          <div class="overlap-zone" style="left: 0%; width: 50%;">
+            <span class="overlap-label">⚠️ Overlap Zone</span>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center; font-size:0.9rem; margin-top:1rem;">VPC-B's entire range falls within VPC-A. Any IP in VPC-B's range (like <code>10.0.50.1</code>) also matches VPC-A's range — <strong>same ambiguity, same problem.</strong></p>
+    </div>
+  </section>
+
+  <!-- SECTION 5: Correct Setup -->
+  <section class="section">
+    <div class="section-label">Chapter 05 — The Fix</div>
+    <h2>How to Plan CIDRs Correctly</h2>
+    <p>The key principle is simple: <strong>every VPC that needs to peer must have a completely non-overlapping address range</strong>. No shared IP addresses, period. Here's a correctly planned setup:</p>
+
+    <!-- Number Line: No Overlap -->
+    <div class="diagram-box">
+      <div class="diagram-title">📏 IP Range Number Line — No Overlap ✅</div>
+      <div class="number-line-container">
+        <div class="number-line" style="height: 150px;">
+          <div class="number-axis"></div>
+          <div class="number-tick" style="left: 0%;"></div>
+          <div class="number-tick" style="left: 20%;"></div>
+          <div class="number-tick" style="left: 50%;"></div>
+          <div class="number-tick" style="left: 70%;"></div>
+          <div class="number-tick" style="left: 100%;"></div>
+          <div class="number-label" style="left: 0%;">10.0.0.0</div>
+          <div class="number-label" style="left: 20%;">10.2.0.0</div>
+          <div class="number-label" style="left: 50%;">10.10.0.0</div>
+          <div class="number-label" style="left: 70%;">10.11.0.0</div>
+          <div class="number-label" style="left: 100%;">10.21.0.0</div>
+          <div class="range-bar bar-hub" style="left: 0%; width: 20%;">Hub VPC</div>
+          <div class="range-bar bar-corp" style="left: 50%; width: 10%;">Corporate</div>
+          <div class="range-bar bar-dev" style="left: 70%; width: 10%;">Dev VPC</div>
+        </div>
+      </div>
+      <p style="text-align:center; font-size:0.9rem; margin-top:1rem;">Notice the <strong>clear gaps</strong> between each range. No IP address belongs to more than one VPC. The router always knows exactly where to send every packet.</p>
+    </div>
+
+    <!-- Safe Plan Diagram -->
+    <div class="diagram-box">
+      <div class="diagram-title">🏗️ Your Multi-VPC Architecture — Safe to Peer</div>
+      <div class="safe-plan">
+        <div class="safe-vpc hub">
+          <div class="safe-vpc-name">Hub VPC</div>
+          <div class="safe-vpc-cidr">10.0.0.0/15</div>
+        </div>
+        <div class="peering-lines">
+          <div class="peer-link">
+            <span class="peer-link-line"></span>
+            <span>peered</span>
+            <span class="peer-link-line"></span>
+          </div>
+          <div class="peer-link">
+            <span class="peer-link-line"></span>
+            <span>peered</span>
+            <span class="peer-link-line"></span>
+          </div>
+        </div>
+        <div class="safe-vpc-row">
+          <div class="safe-vpc corp">
+            <div class="safe-vpc-name">Corporate VPC</div>
+            <div class="safe-vpc-cidr">10.10.0.0/16</div>
+          </div>
+          <div class="safe-vpc dev">
+            <div class="safe-vpc-name">Dev VPC</div>
+            <div class="safe-vpc-cidr">10.20.0.0/16</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <span class="callout-icon">✅</span>
+      <div class="callout-title">Why This Works</div>
+      <p><strong>Hub VPC</strong> owns 10.0.0.0 – 10.1.255.255. <strong>Corporate VPC</strong> starts at 10.10.0.0. <strong>Dev VPC</strong> starts at 10.20.0.0. There's zero overlap, so the router always knows: "10.0.x.x → Hub", "10.10.x.x → Corporate", "10.20.x.x → Dev".</p>
+    </div>
+  </section>
+
+  <!-- SECTION 6: Common Mistakes -->
+  <section class="section">
+    <div class="section-label">Chapter 06 — Avoid These</div>
+    <h2>Common Mistakes That Cause Overlap</h2>
+
+    <div class="mistakes-grid">
+      <div class="mistake-card">
+        <span class="mistake-icon">🔄</span>
+        <div class="mistake-title">Using Default VPC Everywhere</div>
+        <p class="mistake-desc">AWS gives every region a default VPC with <code>172.31.0.0/16</code>. If you have multiple AWS accounts and try to peer their default VPCs — instant overlap.</p>
+      </div>
+      <div class="mistake-card">
+        <span class="mistake-icon">🎲</span>
+        <div class="mistake-title">Picking CIDRs Randomly</div>
+        <p class="mistake-desc">Without a central plan, teams independently choose <code>10.0.0.0/16</code> for their VPCs. Seems fine until you need to connect them.</p>
+      </div>
+      <div class="mistake-card">
+        <span class="mistake-icon">🧩</span>
+        <div class="mistake-title">Forgetting Secondary CIDRs</div>
+        <p class="mistake-desc">Even secondary CIDR blocks added to a VPC cannot overlap with any peered VPC. People add them later and break existing peering.</p>
+      </div>
+      <div class="mistake-card">
+        <span class="mistake-icon">🏢</span>
+        <div class="mistake-title">Mergers & Acquisitions</div>
+        <p class="mistake-desc">Company A uses 10.0.0.0/8 internally. Company B also uses 10.0.0.0/8. They merge and now need to connect their networks. Nightmare scenario.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 7: The Fix with IPAM -->
+  <section class="section">
+    <div class="section-label">Chapter 07 — The Solution</div>
+    <h2>How to Never Have This Problem</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h4>Plan Your CIDR Allocation Upfront</h4>
+          <p>Before creating any VPC, map out your entire IP address space. Assign non-overlapping blocks to each team, environment, and region. Think of it as urban planning — zone the land before building houses.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h4>Use AWS VPC IPAM</h4>
+          <p>AWS IP Address Manager (IPAM) is like a central booking system for IP ranges. Teams request address blocks from IPAM, and it ensures no two VPCs ever get overlapping ranges. It's free to use for basic tracking.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h4>Right-Size from Day One</h4>
+          <p>Pick the right VPC size upfront. You can't expand a VPC beyond <code>/15</code> by adding CIDRs, and adding non-contiguous blocks creates routing complexity. It's easier to start with the right size than to retrofit later.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h4>Document Everything</h4>
+          <p>Maintain a living spreadsheet or IPAM dashboard showing every CIDR allocation across all accounts, regions, and environments. This is your single source of truth.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-icon">💡</span>
+      <div class="callout-title">Pro Tip: Leave Gaps</div>
+      <p>Don't pack your CIDR allocations tightly. Leave room between ranges for future growth. For example, if Corporate is 10.10.0.0/16, start Dev at 10.20.0.0/16 — not 10.11.0.0/16. This gives you space to grow without re-architecting.</p>
+    </div>
+  </section>
+
+  <!-- TLDR -->
+  <div class="tldr-box">
+    <div class="tldr-title">⚡ TL;DR</div>
+    <p>VPC peering requires <strong>unique, non-overlapping CIDR blocks</strong> because routers use IP addresses to decide where to send data. If two VPCs share the same addresses, the router can't tell them apart — like a postman with two houses at the same address. <strong>Plan your IP ranges upfront, use IPAM, and never overlap.</strong></p>
+  </div>
+
+  <!-- Author -->
+  <div class="author-block">
+    <div class="author-avatar">👨‍💻</div>
+    <div>
+      <div class="author-name">Harshith</div>
+      <p class="author-role">DevOps Engineer — Multi-cloud infrastructure, Kubernetes, and everything in between.</p>
+    </div>
+  </div>
+
+</main>
+
+</body>
+</html>

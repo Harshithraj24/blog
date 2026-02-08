@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Networking Deep Dive</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d9ff; }
+        h2 { color: #00d9ff; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        a { color: #00d9ff; }
+        code {
+            background: #0f0f23;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+        }
+        pre {
+            background: #0f0f23;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .back-link { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="back-link"><a href="../">&larr; Back to Blog</a></div>
+
+    <h1>Kubernetes Networking Deep Dive</h1>
+    <p><em>Published: February 2025</em></p>
+
+    <h2>Introduction</h2>
+    <p>Kubernetes networking can be complex. This guide breaks down the key concepts: Pod networking, Services, Ingress, and Network Policies.</p>
+
+    <h2>Pod Networking Basics</h2>
+    <p>Every Pod gets its own IP address. Containers within a Pod share the network namespace and can communicate via <code>localhost</code>.</p>
+    <pre><code>kubectl get pods -o wide
+NAME        READY   IP            NODE
+nginx-pod   1/1     10.244.1.5    worker-1</code></pre>
+
+    <h2>Service Types</h2>
+    <ul>
+        <li><strong>ClusterIP</strong> - Internal cluster communication</li>
+        <li><strong>NodePort</strong> - Exposes service on each node's IP</li>
+        <li><strong>LoadBalancer</strong> - Provisions external load balancer</li>
+    </ul>
+
+    <h2>Network Policies</h2>
+    <p>Network Policies allow you to control traffic flow at the IP/port level:</p>
+    <pre><code>apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress</code></pre>
+
+    <h2>Conclusion</h2>
+    <p>Understanding these networking primitives is essential for running production Kubernetes clusters securely.</p>
+</body>
+</html>
