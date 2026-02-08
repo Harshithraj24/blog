@@ -1,61 +1,321 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Harshith's Tech Blog</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #1a1a2e;
-            color: #eee;
-        }
-        h1 { color: #00d9ff; text-align: center; }
-        .subtitle { text-align: center; color: #888; margin-bottom: 40px; }
-        .blog-list { list-style: none; padding: 0; }
-        .blog-item {
-            background: #16213e;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            transition: transform 0.2s;
-        }
-        .blog-item:hover { transform: translateX(5px); }
-        .blog-item a {
-            color: #00d9ff;
-            text-decoration: none;
-            font-size: 1.3em;
-            font-weight: 600;
-        }
-        .blog-item a:hover { text-decoration: underline; }
-        .blog-item p { color: #aaa; margin: 10px 0 0 0; }
-        .blog-item .date { color: #666; font-size: 0.9em; }
-        footer { text-align: center; margin-top: 50px; color: #666; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harshith's Tech Blog</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent-orange: #f0883e;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --accent-yellow: #d29922;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    line-height: 1.8;
+    font-size: 17px;
+    overflow-x: hidden;
+  }
+
+  /* Hero */
+  .hero {
+    position: relative;
+    min-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 30% 40%, rgba(240,136,62,0.12), transparent),
+      radial-gradient(ellipse 500px 500px at 70% 60%, rgba(88,166,255,0.08), transparent),
+      radial-gradient(ellipse 400px 300px at 50% 80%, rgba(248,81,73,0.06), transparent);
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(48,54,61,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(48,54,61,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black 20%, transparent 70%);
+    animation: gridFloat 20s ease-in-out infinite;
+  }
+
+  @keyframes gridFloat {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-10px, -10px); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 800px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border: 1px solid var(--accent-orange);
+    border-radius: 50px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent-orange);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 2rem;
+    animation: fadeInDown 0.8s ease;
+  }
+
+  @keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    animation: fadeInUp 0.8s ease 0.2s both;
+  }
+
+  .hero h1 .highlight {
+    background: linear-gradient(135deg, var(--accent-orange), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    max-width: 600px;
+    margin: 0 auto;
+    animation: fadeInUp 0.8s ease 0.4s both;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Blog List */
+  .blog-section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent-orange);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .blog-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .blog-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--accent-orange), var(--accent-blue));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .blog-card:hover {
+    border-color: var(--accent-orange);
+    transform: translateX(8px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  }
+
+  .blog-card:hover::before {
+    opacity: 1;
+  }
+
+  .blog-card a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .blog-card h2 {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.4rem;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    transition: color 0.3s ease;
+  }
+
+  .blog-card:hover h2 {
+    color: var(--accent-orange);
+  }
+
+  .blog-card p {
+    color: var(--text-muted);
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .blog-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .blog-tag {
+    padding: 4px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent-blue);
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 4rem 2rem;
+    border-top: 1px solid var(--border);
+    margin-top: 4rem;
+  }
+
+  footer p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  footer a {
+    color: var(--accent-orange);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  footer a:hover {
+    color: var(--accent-blue);
+  }
+
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .social-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+
+  .social-links a:hover {
+    border-color: var(--accent-orange);
+    background: var(--surface);
+  }
+</style>
 </head>
 <body>
-    <h1>Harshith's Tech Blog</h1>
-    <p class="subtitle">Cloud, Kubernetes, and Infrastructure Engineering</p>
+  <section class="hero">
+    <div class="hero-grid"></div>
+    <div class="hero-content">
+      <div class="hero-badge">Tech Blog</div>
+      <h1>Hi, I'm <span class="highlight">Harshith</span></h1>
+      <p class="hero-subtitle">Writing about Cloud Infrastructure, Kubernetes, Networking, and everything in between.</p>
+    </div>
+  </section>
 
-    <ul class="blog-list">
-        <li class="blog-item">
-            <a href="vpc-peering/">VPC Peering with Overlapping CIDRs</a>
-            <p>Deep dive into solving the overlapping CIDR problem in AWS VPC peering using PrivateLink and NLB.</p>
-            <span class="date">February 2025</span>
-        </li>
-        <li class="blog-item">
-            <a href="kubernetes-networking/">Kubernetes Networking Deep Dive</a>
-            <p>Understanding Pod networking, Services, Ingress, and Network Policies in Kubernetes.</p>
-            <span class="date">February 2025</span>
-        </li>
-    </ul>
+  <section class="blog-section">
+    <div class="section-title">Latest Posts</div>
 
-    <footer>
-        <p>Built with simplicity | <a href="https://github.com/Harshithraj24" style="color: #00d9ff;">GitHub</a></p>
-    </footer>
+    <article class="blog-card">
+      <a href="vpc-peering/">
+        <h2>Why VPC Peering Breaks with Overlapping CIDRs</h2>
+        <p>Deep dive into solving the overlapping CIDR problem in AWS VPC peering using PrivateLink and NLB. A practical guide with architecture diagrams.</p>
+        <div class="blog-meta">
+          <span>February 2025</span>
+          <span class="blog-tag">AWS</span>
+          <span class="blog-tag">Networking</span>
+        </div>
+      </a>
+    </article>
+
+    <article class="blog-card">
+      <a href="kubernetes-networking/">
+        <h2>Kubernetes Networking Deep Dive</h2>
+        <p>Understanding Pod networking, Services, Ingress, and Network Policies in Kubernetes.</p>
+        <div class="blog-meta">
+          <span>February 2025</span>
+          <span class="blog-tag">Kubernetes</span>
+          <span class="blog-tag">Networking</span>
+        </div>
+      </a>
+    </article>
+  </section>
+
+  <footer>
+    <p>Built with simplicity</p>
+    <div class="social-links">
+      <a href="https://github.com/Harshithraj24">GitHub</a>
+      <a href="https://linkedin.com/in/">LinkedIn</a>
+    </div>
+  </footer>
 </body>
 </html>
